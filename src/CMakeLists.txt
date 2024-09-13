@@ -10,7 +10,7 @@ set(AE ${CMAKE_CURRENT_BINARY_DIR}/lentilTemplate.py)
 set(KARGS ${CMAKE_CURRENT_BINARY_DIR}/lentil_camera.args)
 set(C4DRES ${CMAKE_CURRENT_BINARY_DIR}/C4DtoA)
 set(PRESET_SCENES ${CMAKE_SOURCE_DIR}/preset_scenes)
-
+set(BOKEH_IMGS ${CMAKE_SOURCE_DIR}/bokeh_imgs)
 
 add_library(${SHADER} SHARED ${SRC})
 
@@ -18,7 +18,7 @@ target_link_libraries(${SHADER} ai)
 set_target_properties(${SHADER} PROPERTIES PREFIX "")
 
 execute_process(COMMAND 
-    python3 ${CMAKE_SOURCE_DIR}/src/uigen.py
+    python ${CMAKE_SOURCE_DIR}/src/uigen.py
     --ui_file ${UI} 
     --mtd_output ${MTD} 
     --ae_template_output ${AE} 
@@ -26,7 +26,6 @@ execute_process(COMMAND
     --c4d_output ${C4DRES}
     #${HTML}
 )
-
 install(TARGETS ${SHADER} DESTINATION ${DSO_INSTALL_DIR})
 # install(FILES ${MTD} DESTINATION ${MTD_INSTALL_DIR})
 # install(FILES ${MTDEXTRA} DESTINATION ${MTD_INSTALL_DIR})
@@ -37,12 +36,7 @@ install(FILES ${AE} DESTINATION ${AE_INSTALL_DIR})
 install(FILES ${KARGS} DESTINATION ${ARGS_INSTALL_DIR})
 install(DIRECTORY ${C4DRES} DESTINATION ${INSTALL_DIR})
 install(DIRECTORY ${PRESET_SCENES} DESTINATION ${SCENES_INSTALL_DIR})
-
-
-
-
-
-
+install(DIRECTORY ${BOKEH_IMGS} DESTINATION ${SCENES_INSTALL_DIR})
 
 # concat mtd files
 set(MTD_FILES ${CMAKE_CURRENT_BINARY_DIR}/lentil_camera.mtd ${CMAKE_CURRENT_SOURCE_DIR}/lentil_hardcode.mtd)

@@ -47,13 +47,14 @@ node_parameters {
   AiParameterFlt("bidir_add_energy_transition", 1.0);
   AiParameterBool("enable_bidir_transmission", false)
   AiParameterBool("enable_skydome", false)
-
   AiMetaDataSetBool(nentry, nullptr, "force_update", true);
 }
 
+// XXX node_plugin_initialize {return lentil_crit_sec_init();}
+node_plugin_initialize { return true; }
 
-node_plugin_initialize {return lentil_crit_sec_init();}
-node_plugin_cleanup {lentil_crit_sec_close();}
+// XXX node_plugin_cleanup {lentil_crit_sec_close();}
+node_plugin_cleanup { }
 
 node_initialize {
   AiCameraInitialize(node);
@@ -70,10 +71,7 @@ node_update {
 node_finish {
   Camera* camera_data = (Camera*)AiNodeGetLocalData(node);
   delete camera_data;
-
-  
 }
-
 
 camera_create_ray {
   Camera* camera_data = (Camera*)AiNodeGetLocalData(node);
@@ -171,10 +169,8 @@ camera_reverse_ray {
   return true;
 }
 
-
-
 void registerLentilCamera(AtNodeLib* node) {
-    node->methods = (AtNodeMethods*) lentilMethods;
+    node->methods = (AtNodeMethods*)lentilMethods;
     node->output_type = AI_TYPE_UNDEFINED;
     node->name = "lentil_camera";
     node->node_type = AI_NODE_CAMERA;

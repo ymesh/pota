@@ -1,5 +1,5 @@
  
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.5)
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -7,7 +7,7 @@ project(lentilArnold)
 
 set(CM_MAJOR_VERSION 2)
 set(CM_MINOR_VERSION 5)
-set(CM_PATCH_VERSION 0)
+set(CM_PATCH_VERSION 1)
 set(CM_VERSION "${CM_MAJOR_VERSION}.${CM_MINOR_VERSION}.${CM_PATCH_VERSION}")
 
 set(CMAKE_VERBOSE_MAKEFILE FALSE)
@@ -42,20 +42,25 @@ find_package(Arnold REQUIRED)
 include_directories(${ARNOLD_INCLUDE_DIR})
 link_directories(${ARNOLD_LIBRARY_DIR})
 
-set(INSTALL_ROOT ${CMAKE_SOURCE_DIR}/dist/lentil${CM_MAJOR_VERSION}.${CM_MINOR_VERSION}.${CM_PATCH_VERSION}-${CMAKE_SYSTEM_NAME}-ai${ARNOLD_VERSION})
-
-
-if (NOT DEFINED INSTALL_DIR)
-    if (DEFINED INSTALL_ROOT)
-        set(INSTALL_DIR "${INSTALL_ROOT}")
-        message("INSTALL_ROOT defined. Adding versions automatically:\n\t${INSTALL_DIR}")
-    else()
-        set(INSTALL_DIR "${CMAKE_BINARY_DIR}/../bin/${ARNOLD_VERSION}")
-        message("INSTALL_DIR not defined. Defaulting to:\n\t${INSTALL_DIR}")
-    endif()
-else()
-    message("Installing to:\n\t${INSTALL_DIR}")
-endif()
+# set (INSTALL_ROOT ${CMAKE_SOURCE_DIR}/dist/lentil-${CM_VERSION}-${CMAKE_SYSTEM_NAME}-ai${ARNOLD_VERSION})
+set (INSTALL_NAME lentil-${CM_VERSION}-${CMAKE_SYSTEM_NAME}-ai${ARNOLD_VERSION})
+# specify just install root path (and default subfolder INSTALL_NAME will be added to it)
+set (INSTALL_ROOT ${CMAKE_SOURCE_DIR}/dist CACHE PATH  "Install root path")
+# or specify full install path
+set (INSTALL_DIR ${INSTALL_ROOT}/${INSTALL_NAME} CACHE PATH "Install directory")
+message ("Installing to:\n\t${INSTALL_DIR}")
+# if (NOT DEFINED INSTALL_DIR)
+#     if (DEFINED INSTALL_ROOT)
+#         # set (INSTALL_DIR "${INSTALL_ROOT}")
+#         set(INSTALL_DIR "${INSTALL_ROOT}/${CM_VERSION}/ai${ARNOLD_VERSION}")
+#         message("INSTALL_ROOT defined. Adding versions automatically:\n\t${INSTALL_DIR}")
+#     else()
+#         set (INSTALL_DIR "${CMAKE_BINARY_DIR}/../bin/${ARNOLD_VERSION}")
+#         message("INSTALL_DIR not defined. Defaulting to:\n\t${INSTALL_DIR}")
+#     endif()
+# else()
+#     message("Installing to:\n\t${INSTALL_DIR}")
+# endif()
 
 # Set up installation paths
 set(DSO_INSTALL_DIR ${INSTALL_DIR}/bin)
@@ -66,29 +71,23 @@ set(NEXML_INSTALL_DIR ${INSTALL_DIR}/aexml)
 set(SPDL_INSTALL_DIR ${INSTALL_DIR}/spdl)
 set(ARGS_INSTALL_DIR ${INSTALL_DIR}/Args)
 set(SCENES_INSTALL_DIR ${INSTALL_DIR})
-
 # file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/docs)
-
 message("Shader binaries will be installed to:\n\t${DSO_INSTALL_DIR}")
 message("Shader MTD will be installed to: \n\t${MTD_INSTALL_DIR}")
 message("AETemplates will be installed to: \n\t${AE_INSTALL_DIR}")
 message("SPDL will be installed to: \n\t${SPDL_INSTALL_DIR}")
 message("Katana Args will be installed to: \n\t${ARGS_INSTALL_DIR}")
 
-
 # Include common files
 include_directories(${CMAKE_SOURCE_DIR})
 
 # Set the list of subdirectories to recurse into to find stuff to build
-set(SUBDIRECTORIES 
-    src
-)
+set (SUBDIRECTORIES src)
 
 # loop over subdirectories
 foreach(SUBDIR ${SUBDIRECTORIES})
     add_subdirectory(${SUBDIR})
 endforeach()
-
 
 # add top-level files
 INSTALL(FILES DESTINATION ${INSTALL_DIR})

@@ -19,9 +19,15 @@
 #include "aov_data.h"
 #include "operator_data.h"
 
-extern AtCritSec l_critsec;
-extern bool l_critsec_active;
 
+extern AtMutex g_crypto_mutex;
+
+// NOTE: AtCritSec is depricated in Arnold 7.2
+// Use std::lock_guard<AtMutex> instead for critical section entry
+// std::lock_guard<AtMutex> guard(g_crypto_mutex);
+
+// extern AtCritSec l_critsec;
+// extern bool l_critsec_active;
 
 ///////////////////////////////////////////////
 //
@@ -29,34 +35,32 @@ extern bool l_critsec_active;
 //
 ///////////////////////////////////////////////
 
-inline bool lentil_crit_sec_init() {
-    // Called in node_plugin_initialize. Returns true as a convenience.
-    l_critsec_active = true;
-    AiCritSecInit(&l_critsec);
-    return true;
-}
+// inline bool lentil_crit_sec_init() {
+//     // Called in node_plugin_initialize. Returns true as a convenience.
+//     l_critsec_active = true;
+//     AiCritSecInit(&l_critsec);
+//     return true;
+// }
 
-inline void lentil_crit_sec_close() {
-    // Called in node_plugin_cleanup
-    l_critsec_active = false;
-    AiCritSecClose(&l_critsec);
-}
+// inline void lentil_crit_sec_close() {
+//     // Called in node_plugin_cleanup
+//     l_critsec_active = false;
+//     AiCritSecClose(&l_critsec);
+// }
 
-inline void lentil_crit_sec_enter() {
-    // If the crit sec has not been inited since last close, we simply do not enter.
-    // (Used by Cryptomatte filter.)
-    if (l_critsec_active)
-        AiCritSecEnter(&l_critsec);
-}
+// inline void lentil_crit_sec_enter() {
+//     // If the crit sec has not been inited since last close, we simply do not enter.
+//     // (Used by Cryptomatte filter.)
+//     if (l_critsec_active)
+//         AiCritSecEnter(&l_critsec);
+// }
 
-inline void lentil_crit_sec_leave() {
-    // If the crit sec has not been inited since last close, we simply do not enter.
-    // (Used by Cryptomatte filter.)
-    if (l_critsec_active)
-        AiCritSecLeave(&l_critsec);
-}
-
-
+// inline void lentil_crit_sec_leave() {
+//     // If the crit sec has not been inited since last close, we simply do not enter.
+//     // (Used by Cryptomatte filter.)
+//     if (l_critsec_active)
+//         AiCritSecLeave(&l_critsec);
+// }
 
 // enum to switch between lens models in interface dropdown
 enum LensModel{
@@ -82,12 +86,6 @@ enum ChromaticType{
     green_magenta,
     red_cyan
 };
-
-
-
-
-
-
 
 struct Camera
 {
@@ -194,11 +192,10 @@ struct Camera
     bool imager_print_once_only = false;
     bool crypto_in_same_queue = false;
 
-
 public:
 
     Camera() {
-        if (!l_critsec_active) AiMsgError("[Lentil] Critical section was not initialized. ");
+        // if (!l_critsec_active) AiMsgError("[Lentil] Critical section was not initialized. ");
         crypto_in_same_queue = false;
     }
 
@@ -206,10 +203,10 @@ public:
         image.invalidate();
         destroy_buffers();
     }
-    
-
+ 
     void setup_camera (AtUniverse *universe) {
-        lentil_crit_sec_enter();
+        // lentil_crit_sec_enter();
+        std::lock_guard<AtMutex> guard(g_crypto_mutex);
 
         destroy_buffers();
 
@@ -224,17 +221,13 @@ public:
         image.invalidate();
         if (bokeh_enable_image && !image.read(bokeh_image_path.c_str())){
             AiMsgError("[LENTIL CAMERA PO] Couldn't open bokeh image!");
-            AiRenderAbort();
+            // XXX
+            AiRenderAbort(AiUniverseGetRenderSession(universe));
         }
-
-
         #ifdef CM_VERSION
             AiMsgInfo("[LENTIL] Version: %s", CM_VERSION);
         #endif
-
-        lentil_crit_sec_leave();
-
-
+        // lentil_crit_sec_leave();
 
         redistribution = get_bidirectional_status(universe); // this should include AA level test
         if (redistribution) {
@@ -250,7 +243,6 @@ public:
                     crypto_node = aov_node;
                 }
             }
-
             // POTENTIAL BUG: what if lentil updates on the same thread as cryptomatte, and is in the queue before crypto? That would be a deadlock.
             // this is an ugly solution, continually checking if cryptomatte already did the setup.
             if (crypto_node){
@@ -268,8 +260,6 @@ public:
                 }
                 cryptomatte_lentil = true;
             }
-
-
             // once crypto has been setup I can do my own setup
             if (!crypto_in_same_queue){
                 setup_lentil_aovs(universe);
@@ -278,7 +268,6 @@ public:
             }
         }
     }
-
 
     inline void trace_ray_fw_po(int &tries, 
                                 const double sx, const double sy,
@@ -294,7 +283,6 @@ public:
         Eigen::VectorXd out(5); out.setZero();
 
         while(!ray_succes && tries <= vignetting_retries){
-
             // set sensor position coords
             sensor(0) = sx * (sensor_width * 0.5);
             sensor(1) = sy * (sensor_width * 0.5);
@@ -303,7 +291,6 @@ public:
 
             aperture.setZero();
             out.setZero();
-
 
             if (!enable_dof) aperture(0) = aperture(1) = 0.0; // no dof, all rays through single aperture point
             
@@ -323,13 +310,8 @@ public:
                     lens_sample_triangular_aperture(unit_disk(0), unit_disk(1), r1, r2, 1.0, bokeh_aperture_blades);
                 }
             }
-
             aperture(0) = unit_disk(0) * aperture_radius;
             aperture(1) = unit_disk(1) * aperture_radius;
-            
-            
-
-
             // if (empirical_ca_dist > 0.0) {
             //   Eigen::Vector2d sensor_pos(sensor[0], sensor[1]);
             //   Eigen::Vector2d aperture_pos(aperture[0], aperture[1]);
@@ -337,18 +319,14 @@ public:
             //   aperture(0) = aperture_pos(0);
             //   aperture(1) = aperture_pos(1);
             // }
-            
-
             if (enable_dof) {
                 // aperture sampling, to make sure ray is able to propagate through whole lens system
                 lens_pt_sample_aperture(sensor, aperture, sensor_shift);
             }
-            
 
             // move to beginning of polynomial
             sensor(0) += sensor(2) * sensor_shift;
             sensor(1) += sensor(3) * sensor_shift;
-
 
             // propagate ray from sensor to outer lens element
             double transmittance = lens_evaluate(sensor, out);
@@ -357,13 +335,11 @@ public:
                 continue;
             }
 
-
             // crop out by outgoing pupil
             if( out(0)*out(0) + out(1)*out(1) > lens_outer_pupil_radius*lens_outer_pupil_radius){
                 ++tries;
                 continue;
             }
-
 
             // crop at inward facing pupil
             const double px = sensor(0) + sensor(2) * lens_back_focal_length;
@@ -372,12 +348,9 @@ public:
                 ++tries;
                 continue;
             }
-                
             ray_succes = true;
         }
-
         if (ray_succes == false) weight = AI_RGB_ZERO;
-
 
         // convert from sphere/sphere space to camera space
         Eigen::Vector2d outpos(out[0], out[1]);
@@ -390,7 +363,6 @@ public:
         
         origin = AtVector(cs_origin(0), cs_origin(1), cs_origin(2));
         direction = AtVector(cs_direction(0), cs_direction(1), cs_direction(2));
-
 
         switch (unitModel){
             case mm:
@@ -414,7 +386,6 @@ public:
                 direction *= -0.001; //reverse rays and convert to cm (from mm)
             }
         }
-
         direction = AiV3Normalize(direction);
 
         // Nan bailout
@@ -423,10 +394,7 @@ public:
         {
             weight = AI_RGB_ZERO;
         }
-
     }
-
-
 
     inline void trace_ray_fw_thinlens(int &tries, 
                                     const double sx, const double sy,
@@ -436,21 +404,18 @@ public:
         bool ray_succes = false;
 
         while (!ray_succes && tries <= vignetting_retries){
-            
             // distortion
             AtVector s(sx, sy, 0.0);
             if (abb_distortion > 0.0){
                 AtVector2 s2 = barrelDistortion(AtVector2(sx, sy), abb_distortion);
                 s = {s2.x, s2.y, 0.0};
             }
-            
 
             // create point on sensor (camera space)
             const AtVector p(s.x * (sensor_width*0.5), 
                              s.y * (sensor_width*0.5), 
                             -focal_length);
                 
-
             // calculate direction vector from origin to point on lens
             AtVector dir_from_center = AiV3Normalize(p); // or norm(p-origin)
 
@@ -471,25 +436,19 @@ public:
                     lens_sample_triangular_aperture(unit_disk(0), unit_disk(1), r1, r2, 1.0, bokeh_aperture_blades);
                 }
             }
-
-
             unit_disk(0) *= bokeh_anamorphic;
-
 
             // aberration inputs
             float abb_field_curvature = 0.0;
-
 
             AtVector lens(unit_disk(0) * aperture_radius, unit_disk(1) * aperture_radius, 0.0);
             const float intersection = std::abs(focus_distance / linear_interpolate(abb_field_curvature, dir_from_center.z, 1.0));
             const AtVector focusPoint = dir_from_center * intersection;
             AtVector dir_from_lens = AiV3Normalize(focusPoint - lens);
-            
 
             // perturb ray direction to simulate coma aberration
             float abb_coma_multiplied = abb_coma * abb_coma_multipliers(sensor_width, focal_length, dir_from_center, unit_disk);
             dir_from_lens = abb_coma_perturb(dir_from_lens, dir_from_lens, abb_coma_multiplied, false);
-
 
             if (optical_vignetting_distance > 0.0 && !deriv_ray){
                 if (!empericalOpticalVignettingSquare(lens, dir_from_lens, aperture_radius, optical_vignetting_radius, optical_vignetting_distance, lerp_squircle_mapping(circle_to_square))){
@@ -497,8 +456,6 @@ public:
                     continue;
                 }
             }
-
-
             // weight = AI_RGB_WHITE;
             // if (emperical_ca_dist > 0.0){
             //     const AtVector2 p2(p.x, p.y);
@@ -507,7 +464,6 @@ public:
             //     AtVector2 aperture_0_center(0.0, 0.0);
             //     AtVector2 aperture_1_center(- p2 * coc * emperical_ca_dist); //previous: change coc for dist_to_center
             //     AtVector2 aperture_2_center(p2 * coc * emperical_ca_dist);//previous: change coc for dist_to_center
-                
 
             //     if (random_aperture == 1)      lens += aperture_1_center;
             //     else if (random_aperture == 2) lens += aperture_2_center;
@@ -533,7 +489,6 @@ public:
             // //     // output.weight.g /= sum;
             // //     // output.weight.b /= sum;
             // }
-
             origin = lens;
             dir = dir_from_lens;
 
@@ -559,15 +514,12 @@ public:
                     dir *= 0.01; //reverse rays and convert to cm (from mm)
                 }
             }
-
-           
             // weight = AI_RGB_WHITE;
             ray_succes = true;
         }
         dir = AiV3Normalize(dir);
         if (!ray_succes) weight = AI_RGB_BLACK;
     }
-
 
     // given camera space scene point, return point on sensor
     inline bool trace_ray_bw_po(Eigen::Vector3d target,
@@ -590,7 +542,6 @@ public:
         Eigen::Vector2d aperture(0,0);
         
         while(ray_succes == false && tries <= vignetting_retries){
-
             Eigen::Vector2d unit_disk(0.0, 0.0);
 
             if (!enable_dof) aperture(0) = aperture(1) = 0.0; // no dof, all rays through single aperture point
@@ -607,8 +558,6 @@ public:
                 unsigned int seed = tea<8>(px*py+px, total_samples_taken+tries);
                 lens_sample_triangular_aperture(aperture(0), aperture(1), rng(seed), rng(seed), aperture_radius, bokeh_aperture_blades);
             }
-
-
             // raytrace for scene/geometrical occlusions along the ray
             AtVector lens_correct_scaled = AtVector(-aperture(0)*0.1, -aperture(1)*0.1, 0.0);
             switch (unitModel){
@@ -635,7 +584,6 @@ public:
                 ++tries;
                 continue;
             }
-
             // crop at inward facing pupil, not needed to crop by outgoing because already done in lens_lt_sample_aperture()
             const double px = sensor(0) + sensor(2) * lens_back_focal_length;
             const double py = sensor(1) + sensor(3) * lens_back_focal_length; //(note that lens_focal_length is the back focal length, i.e. the distance unshifted sensor -> pupil)
@@ -643,7 +591,6 @@ public:
                 ++tries;
                 continue;
             }
-
             ray_succes = true;
         }
 
@@ -660,8 +607,6 @@ public:
         return true;
     }
 
-
-
     inline float get_image_dist_focusdist_thinlens(){
         return (-focal_length * -focus_distance) / (-focal_length + -focus_distance);
     }
@@ -669,7 +614,6 @@ public:
     inline float get_image_dist_focusdist_thinlens_abberated(const float shift){
         return (-focal_length * -(focus_distance+shift)) / (-focal_length + -(focus_distance+shift));
     }
-
 
     inline float get_coc_thinlens(AtVector camera_space_sample_position){
         // need to account for the differences in setup between the two methods, since the inputs are scaled differently in the camera shader
@@ -690,8 +634,6 @@ public:
         const float image_dist_focusdist = (-focal_length * -_focus_distance) / (-focal_length + -_focus_distance);
         return std::abs((_aperture_radius * (image_dist_samplepos - image_dist_focusdist))/image_dist_samplepos); // coc diameter
     }
-
-
 
     AtRGBA filter_closest_complete(AtAOVSampleIterator *iterator, const uint8_t aov_type){
         AtRGBA pixel_energy = AI_RGBA_ZERO;
@@ -728,10 +670,8 @@ public:
                 }
             }
         }
-
         return pixel_energy;
     }
-
 
     AtRGBA filter_gaussian_complete(AtAOVSampleIterator *iterator, const uint8_t aov_type, const float inverse_sample_density, const bool adaptive_sampling){
         float aweight = 0.0f;
@@ -767,14 +707,11 @@ public:
             avalue += weight * sample_energy;
             aweight += weight;
         }
-        
         // compute final filtered color
         if (aweight != 0.0f) avalue /= aweight;
 
         return avalue;
     }
-
-
 
     // get all depth samples so i can re-use them
     void cryptomatte_construct_cache(std::vector<std::map<float, float>> &crypto_hashmap_cache,
@@ -810,15 +747,12 @@ public:
         }
     }
 
-
     inline void add_to_buffer_cryptomatte(AOVData &aov, int px, std::map<float, float> &cryptomatte_cache, const float sample_weight) {
         aov.crypto_total_weight[px] += sample_weight;
         for (auto const& sample : cryptomatte_cache) {
             aov.crypto_hash_map[px][sample.first] += sample.second * sample_weight;
         }
     }
-
-    
 
     inline void add_to_buffer(AOVData &aov, const int px, const AtRGBA aov_value,
                             const float fitted_bidir_add_energy, float depth,
@@ -828,7 +762,6 @@ public:
             if (aov.name == atstring_rgba) filter_weight_buffer[px] += filter_weight;
             aov.buffer[px] += (aov_value+fitted_bidir_add_energy) * filter_weight * rgb_weight;
         }
-        
         else if (aov.original_filter == atstring_filter_closest){
             if (aov.name != atstring_lentil_debug) {
                 if ((std::abs(depth) <= zbuffer[px]) || zbuffer[px] == 0.0){
@@ -844,7 +777,6 @@ public:
                 }
             }
         }
-        
         else if (aov.original_filter == atstring_filter_variance){
             // TODO: implement variance online filter (https://gist.github.com/musically-ut/1502045/106af3cf8bd4db0c8581218759040b058da778d3)
         }
@@ -928,7 +860,6 @@ public:
     //     }
     }
 
-
     // inline float filter_weight_gaussian(AtVector2 p, float width) {
     //     const float r = std::pow(2.0 / width, 2.0) * (std::pow(p.x, 2) + std::pow(p.y, 2));
     //     if (r > 1.0f) return 0.0;
@@ -954,12 +885,9 @@ public:
         }
     }
 
-
     inline int coords_to_linear_pixel(const int x, const int y) {
         return x + (y * xres);
     }
-
-
 
     inline void lens_sample_triangular_aperture(double &x, double &y, double r1, double r2, const double radius, const int blades){
         const int tri = (int)(r1*blades);
@@ -980,7 +908,6 @@ public:
         x = radius * (b * p1[1] + c * p2[1]);
         y = radius * (b * p1[0] + c * p2[0]);
     }
-
 
     // the AOV setup is done inside of the operator, which is guaranteed to be
     // initialized before any other node. Only one lentil_operator is allowed in the scene.
@@ -1046,13 +973,9 @@ public:
                 crypto_aovs.push_back(aov);
             }
         }
-        
         aovs.insert(aovs.end(), crypto_aovs.begin(), crypto_aovs.end());
         rebuild_arnold_outputs_from_list(universe, aovs);
-        
     }
-
-
     
     void setup_filter(AtUniverse *universe) {
         aovcount = aovs.size();
@@ -1078,7 +1001,6 @@ public:
 
         xres = region_max_x - region_min_x + 1;
         yres = region_max_y - region_min_y + 1;
-        
 
         const AtNodeEntry *oidn_ne = AiNodeEntryLookUp(AtString("imager_denoiser_oidn"));
         if (AiNodeEntryGetCount(oidn_ne) != 0){
@@ -1092,16 +1014,13 @@ public:
         imager_print_once_only = false;
         current_inv_density = 0.0;
 
-
         zbuffer.resize(xres * yres);
         zbuffer_debug.resize(xres * yres);
         filter_weight_buffer.resize(xres * yres);
 
-
         // creates buffers for each AOV with lentil_filter (lentil_replaced_filter)
         for (auto &aov : aovs) {
             if (aov.to.filter_tok == "lentil_replaced_filter"){
-                
                 // crypto does this check to avoid "actually" doing the work unless we're writing an exr to disk
                 // this speeds up the IPR sessions.
                 bool driver_is_exr = false;
@@ -1121,10 +1040,6 @@ public:
         }
     }
 
-
-
-
-
     inline float additional_luminance_soft_trans(const float sample_luminance){
         // additional luminance with soft transition
         if (sample_luminance > bidir_add_energy_minimum_luminance && sample_luminance < bidir_add_energy_minimum_luminance+bidir_add_energy_transition){
@@ -1137,7 +1052,6 @@ public:
         return 0.0;
     }
 
-
 private:
 
     void destroy_buffers() {
@@ -1147,10 +1061,7 @@ private:
         filter_weight_buffer.clear();
     }
 
-
-     bool get_bidirectional_status(AtUniverse *universe) {
-
-
+    bool get_bidirectional_status(AtUniverse *universe) {
         if (!enable_dof) {
             AiMsgWarning("[LENTIL BIDIRECTIONAL] Depth of field is disabled, therefore disabling bidirectional sampling.");
             return false;
@@ -1164,16 +1075,13 @@ private:
         // if progressive rendering is on, don't redistribute
         if (enable_dof && bidir_sample_mult != 0 && AiNodeGetBool(AiUniverseGetOptions(universe), AtString("enable_progressive_render"))) {
             AiMsgError("[LENTIL BIDIRECTIONAL] Progressive rendering is not supported. Arnold does not yet provide enough API functionality for this to be implemented as it should.");
-            AiRenderAbort();
+            // XXX
+            AiRenderAbort(AiUniverseGetRenderSession(universe));
             return false;
         }
-
         // should include an AA sample level test, if not final sample level, skip! currently i have to do ugly counting inside the filter to get the current AA level.
-
         return true;
     }
-
-
 
     inline void reset_iterator_to_id(AtAOVSampleIterator* iterator, int id){
         AiAOVSampleIteratorReset(iterator);
@@ -1181,10 +1089,8 @@ private:
         for (int i = 0; AiAOVSampleIteratorGetNext(iterator) == true; i++){
             if (i == id) return;
         }
-
         return;
     }
-
 
     void get_lentil_camera_params() {
         cameraType = (CameraType) AiNodeGetInt(camera_node, AtString("camera_type"));
@@ -1238,16 +1144,12 @@ private:
         vignetting_retries = AiNodeGetInt(camera_node, AtString("vignetting_retries"));
         enable_bidir_transmission = AiNodeGetBool(camera_node, AtString("enable_bidir_transmission"));
         enable_skydome = AiNodeGetBool(camera_node, AtString("enable_skydome"));
-
-        
     }
-
 
     void get_arnold_options() {
         xres = AiNodeGetInt(options_node, AtString("xres"));
         yres = AiNodeGetInt(options_node, AtString("yres"));
     }
-
 
     // evaluates from sensor (in) to outer pupil (out).
     // input arrays are 5d [x,y,dx,dy,lambda] where dx and dy are the direction in
@@ -1289,7 +1191,6 @@ private:
         in[2] = dx;
         in[3] = dy;
     }
-    
 
     // solves for a sensor position given a scene point and an aperture point
     // returns transmittance from sensor to outer pupil
@@ -1311,7 +1212,6 @@ private:
         sensor[0] = x; sensor[1] = y; sensor[2] = dx; sensor[3] = dy; sensor[4] = lambda;
         return std::max(0.0, out[4]);
     }
-
 
     inline bool trace_ray_focus_check(double sensor_shift, double &test_focus_distance)
     {
@@ -1356,8 +1256,6 @@ private:
         return true;
     }
 
-
-
     inline double camera_get_y0_intersection_distance(double sensor_shift, double intersection_distance)
     {
         Eigen::VectorXd sensor(5); sensor.setZero();
@@ -1384,7 +1282,6 @@ private:
         
         return line_plane_intersection(camera_space_pos, camera_space_omega)(2);
     }
-
 
     // note that this is all with an unshifted sensor
     inline void trace_backwards_for_fstop(const double fstop_target, double &calculated_fstop, double &calculated_aperture_radius) {
@@ -1435,11 +1332,9 @@ private:
                 best_valid_aperture_radius = parallel_ray_height;
             }
         }
-
         calculated_fstop = best_valid_fstop;
         calculated_aperture_radius = best_valid_aperture_radius;
     }
-
 
     // focal_distance is in mm
     inline double logarithmic_focus_search(const double focal_distance){
@@ -1455,11 +1350,8 @@ private:
                 best_sensor_shift = sensorshift;
             }
         }
-
         return best_sensor_shift;
     }
-
-
 
     // returns sensor offset in mm
     // traces rays backwards through the lens
@@ -1495,7 +1387,6 @@ private:
                 }
             }
         }
-
         // average guesses
         offset /= count; 
         
@@ -1518,8 +1409,6 @@ private:
 
     }
 
-
-
     // returns sensor offset in mm
     inline double camera_set_focus_infinity()
     {
@@ -1540,33 +1429,29 @@ private:
         // see where we need to put the sensor plane.
         for(int s=1; s<=S; s++){
             for(int k=0; k<2; k++){
-            
-            // reset aperture
-            aperture(0) = 0.0f;
-            aperture(1) = parallel_ray_height;
+                // reset aperture
+                aperture(0) = 0.0f;
+                aperture(1) = parallel_ray_height;
 
-            lens_lt_sample_aperture(target, aperture, sensor, out, lambda);
+                lens_lt_sample_aperture(target, aperture, sensor, out, lambda);
 
-            if(sensor(2+k) > 0){
-                offset += sensor(k)/sensor(2+k);
-                count ++;
-            }
+                if(sensor(2+k) > 0){
+                    offset += sensor(k)/sensor(2+k);
+                    count ++;
+                }
             }
         }
-
         offset /= count; 
         
         // check NaN cases
         if(offset == offset){
             return offset;
-        } else {return 0.0;}
+        } else {
+            return 0.0;
+        }
     }
 
-
-    
-
     void camera_model_specific_setup () {
-
         switch (cameraType){
             case PolynomialOptics:
             {
@@ -1575,7 +1460,6 @@ private:
                 switch (lensModel){
                     #include "../include/auto_generated_lens_includes/load_lens_constants.h"
                 }
-
                 AiMsgInfo("[LENTIL CAMERA PO] ----------  LENS CONSTANTS  -----------");
                 AiMsgInfo("[LENTIL CAMERA PO] Lens Name: %s", lens_name);
                 AiMsgInfo("[LENTIL CAMERA PO] Lens F-Stop: %f", lens_fstop);
@@ -1595,11 +1479,7 @@ private:
                 AiMsgInfo("[LENTIL CAMERA PO] lens_aperture_radius_at_fstop: %f", lens_aperture_radius_at_fstop);
                 #endif
                 AiMsgInfo("[LENTIL CAMERA PO] --------------------------------------");
-
-
-                
                 AiMsgInfo("[LENTIL CAMERA PO] wavelength: %f nm", lambda);
-
 
                 if (input_fstop == 0.0) {
                     aperture_radius = lens_aperture_radius_at_fstop;
@@ -1613,40 +1493,31 @@ private:
                     
                     aperture_radius = std::min(lens_aperture_radius_at_fstop, calculated_aperture_radius);
                 }
-
                 AiMsgInfo("[LENTIL CAMERA PO] lens wide open f-stop: %f", lens_fstop);
                 AiMsgInfo("[LENTIL CAMERA PO] lens wide open aperture radius: %f mm", lens_aperture_radius_at_fstop);
                 AiMsgInfo("[LENTIL CAMERA PO] fstop-calculated aperture radius: %f mm", aperture_radius);
                 AiMsgInfo("[LENTIL CAMERA PO] --------------------------------------");
-
-
                 AiMsgInfo("[LENTIL CAMERA PO] user supplied focus distance: %f mm", focus_distance);
-
                 /*
                 AiMsgInfo("[LENTIL CAMERA PO] calculating sensor shift at focus distance:");
                 sensor_shift = camera_set_focus(focus_distance, po);
                 AiMsgInfo("[LENTIL CAMERA PO] sensor_shift to focus at %f: %f", focus_distance, sensor_shift);
                 */
-
                 // logartihmic focus search
                 double best_sensor_shift = logarithmic_focus_search(focus_distance);
                 AiMsgInfo("[LENTIL CAMERA PO] sensor_shift using logarithmic search: %f mm", best_sensor_shift);
                 sensor_shift = best_sensor_shift + extra_sensor_shift;
-
                 /*
                 // average guesses infinity focus search
                 double infinity_focus_sensor_shift = camera_set_focus(AI_BIG, po);
                 AiMsgInfo("[LENTIL CAMERA PO] sensor_shift [average guesses backwards light tracing] to focus at infinity: %f", infinity_focus_sensor_shift);
                 */
-
                 // logarithmic infinity focus search
                 double best_sensor_shift_infinity = logarithmic_focus_search(999999999.0);
                 AiMsgInfo("[LENTIL CAMERA PO] sensor_shift [logarithmic forward tracing] to focus at infinity: %f mm", best_sensor_shift_infinity);
-                    
                 // bidirectional parallel infinity focus search
                 double infinity_focus_parallel_light_tracing = camera_set_focus_infinity();
                 AiMsgInfo("[LENTIL CAMERA PO] sensor_shift [parallel backwards light tracing] to focus at infinity: %f mm", infinity_focus_parallel_light_tracing);
-
                 // double check where y=0 intersection point is, should be the same as focus distance
                 double test_focus_distance = 0.0;
                 bool focus_test = trace_ray_focus_check(sensor_shift, test_focus_distance);
@@ -1654,11 +1525,8 @@ private:
                 if(!focus_test){
                     AiMsgWarning("[LENTIL CAMERA PO] focus check failed. Either the lens system is not correct, or the sensor is placed at a wrong distance.");
                 }
-
                 tan_fov = std::tan(lens_field_of_view / 2.0);
-
                 AiMsgInfo("[LENTIL CAMERA PO] --------------------------------------");
-
             } break;
             case ThinLens:
             {

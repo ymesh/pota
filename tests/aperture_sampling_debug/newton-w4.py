@@ -17,20 +17,20 @@ def newton_raphson():
       if f1 == 0 and f2==0:
           break
       
-      print "\r\nIteration=%d" %count
+      print("\r\nIteration=%d" %count)
       count += 1
       
-      print "f1= %f" %(f1)
-      print "f2=%f" %(f2)
+      print("f1= %f" %(f1))
+      print("f2=%f" %(f2))
       
       # partial derivatives
       A = 2*X - 10
       B = 2*Y - 10
       C = 2*X - 22
       D = 2*Y - 10
-      print "Partial derivatives:"
-      print A,B
-      print C,D
+      print("Partial derivatives:")
+      print(A,B)
+      print(C,D)
 
       J = [[A, B], [C, D]]
 
@@ -40,15 +40,15 @@ def newton_raphson():
         [J[1][1] * invdetap, -J[0][1] * invdetap],
         [-J[1][0] * invdetap, J[0][0] * invdetap]]
 
-      print "inv_jac", inv_jacobian
+      print("inv_jac", inv_jacobian)
 
       dampen = 0.72
 
       X = X - dampen*(inv_jacobian[0][0]*f1 + inv_jacobian[0][1]*f2)
       Y = Y - dampen*(inv_jacobian[1][0]*f1 + inv_jacobian[1][1]*f2)
 
-      print "X: ", X
-      print "Y: ", Y
+      print("X: ", X)
+      print("Y: ", Y)
 
 
 
@@ -69,20 +69,20 @@ def w4():
       if f1 == 0 and f2==0:
           break
       
-      print "\r\nIteration=%d" %count
+      print("\r\nIteration=%d" %count)
       count += 1
       
-      print "f1= %f" %(f1)
-      print "f2=%f" %(f2)
+      print("f1= %f" %(f1))
+      print("f2=%f" %(f2))
       
       # partial derivatives
       A = 2*X - 10
       B = 2*Y - 10
       C = 2*X - 22
       D = 2*Y - 10
-      print "Partial derivatives:"
-      print A,B
-      print C,D
+      print("Partial derivatives:")
+      print(A,B)
+      print(C,D)
 
       J = [[A, B], 
            [C, D]]
@@ -111,14 +111,14 @@ def w4():
         [J[1][1] * invdetap, -J[0][1] * invdetap],
         [-J[1][0] * invdetap, J[0][0] * invdetap]]
 
-      print "inv_jac", inv_jacobian
+      print("inv_jac", inv_jacobian)
 
 
       X = X -(inv_jacobian[0][0]*f1 + inv_jacobian[0][1]*f2)
       Y = Y -(inv_jacobian[1][0]*f1 + inv_jacobian[1][1]*f2)
 
-      print "X: ", X
-      print "Y: ", Y
+      print("X: ", X)
+      print("Y: ", Y)
 
 
 
